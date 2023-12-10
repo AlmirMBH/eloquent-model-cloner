@@ -12,7 +12,7 @@ In response to a task involving the cloning of models and their nested relations
 trait that encapsulates the specific requirements of the task, with the intention of sharing it with the Laravel
 community. While the entire trait is designed to be universally applicable to any Laravel project, it is worth noting
 that one of the methods is tailored to address specific needs within my project. This method is detailed in the
-"Special Requirement" section below. You have the flexibility to easily adjust or omit this method based on your
+`Special Requirement` section below. You have the flexibility to easily adjust or omit this method based on your
 project's unique requirements.
 The remaining functionality in the trait is generic and can seamlessly integrate into any Laravel project, offering a
 solution for cloning models and their nested relationships, see the code and tests for more details.
@@ -29,8 +29,8 @@ the cloning of relations and associated files, consider using the original
 [BKWLD/cloner](https://github.com/BKWLD/cloner/tree/master) package.
 
 Ensure to review the constraints outlined at the end of this document before implementing the trait.
-Additionally, the `duplicatePivotedRelation` method includes comments explaining special considerations during
-many-to-many cloning.
+Additionally, the `clonePivotRelation` method includes comments explaining special considerations during many-to-many
+cloning.
 
 
 ## How to use
@@ -59,8 +59,8 @@ class Author extends Model
 
 
 ### Usage
-Implement the trait in classes where cloning is needed and use the duplicate method to clone relations,
-adhering to the order specified in $cloneableRelations. For example,
+Implement the trait, that is, add `use ModelClonerTrait` in classes where cloning is needed and then use the `duplicate`
+method to clone relations, adhering to the order specified in $cloneableRelations. For example,
 
 ```
 class AuthorController extends Controller
@@ -92,10 +92,12 @@ class AuthorController extends Controller
     }
 ```
 
-The 'replicate' method is a Laravel method from Illuminate\Database\Eloquent\Model, and it is used to clone the model
-itself. It has a number of methods and some of them are used in this trait.  
-The 'duplicate' method is used to clone the model and its relations. The 'duplicate' method accepts an optional array of
-relations to clone. If no relations are specified, the method will not clone any of the relations the model has.
+The `replicate` method used in the trait is a Laravel method from Illuminate\Database\Eloquent\Model, and it is used to
+clone the Eloquent models. It has a number of methods and some of them are used in this trait.
+
+The `duplicate` method is used to clone the model and its relations. The `duplicate` method accepts an optional array of
+relations to clone. If no relations are specified in a model (`$cloneableRelations`), the method will not clone any of the
+relations the model has.
 
 
 ## Important notes
@@ -143,9 +145,9 @@ Comment - Tag (one-to-many relation)
 Tag - TagType (many-to-one relation)
 
 ### Special requirement
-Both Author and Post are related with the Review whose table has author_id and post_id. As according to my project
-requirements, the Post related to the author is cloned after the Review, the cloned Post IDs have to be updated in
-the Review table.
+Both Author and Post are related with the Review whose table has author_id and post_id columns. As according to my
+project requirements, the Post related to the author is cloned after the Review, the cloned Post IDs have to be updated
+in the Review table.
 This is done in `updateReviews` method. The cloned Post IDs are stored in the $clonedIds, that is, the $clonedIds
 property is an array of arrays, where the key is the original ID and the value is the cloned ID, see the method for more
 details. Bear in mind that, if the order of cloning requirements were different, the methods would have to be adjusted
@@ -169,7 +171,7 @@ to seed the database again before performing any cloning via API tools.
 
 
 ## Testing
-The cloning process is tested in the CloneTest, testCloneAuthorAndRelatedModels and testClonePostAndRelatedModels
+The cloning process is tested in the `CloneTest`, `testCloneAuthorAndRelatedModels` and `testClonePostAndRelatedModels`
 methods. The trait DatabaseMigrations is used to refresh the database before each test.
 The test database is seeded with the data located in the test trait CloneTestData. It also contains the expected
 response, that is, the structure of the data and actual data that is expected to be returned after cloning the models.
