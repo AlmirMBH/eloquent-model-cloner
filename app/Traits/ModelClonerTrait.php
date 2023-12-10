@@ -3,25 +3,28 @@
 namespace App\Traits;
 
 use App;
-use App\Constants\ModelClonerConstants;
+use App\Models\Author;
+use App\Models\Post;
 use App\Models\Review;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
 
 trait ModelClonerTrait
 {
-    public function duplicate(Model $model, Relation $relation = null): Model
+    private function duplicate(Model $model, Relation $relation = null): Model
     {
         $clone = $model->replicate($model->exceptColumns ?? null);
 
-        if (!$relation && get_class($model) === ModelClonerConstants::AUTHOR_MODEL) {
-            $clone->name = $clone->name . ' Cloned';
+        if ($model instanceof Author && !$relation) {
+            $clone->name .= ' Cloned';
         }
 
         $clone->save();
 
-        if ($relation && !is_a($relation, ModelClonerConstants::BELONGS_TO_MANY)) {
+        if ($relation && !$relation instanceof BelongsToMany) {
             $relation->save($clone);
         }
 
@@ -32,66 +35,71 @@ trait ModelClonerTrait
         return $clone;
     }
 
-    protected function cloneRelations(Model $model, Model $clone): void
+    private function cloneRelations(Model $model, Model $clone): void
     {
-        foreach($model->cloneableRelations as $relationName) {
+        foreach ($model->cloneableRelations as $relationName) {
             $relation = call_user_func([$model, $relationName]);
 
-            if (is_a($relation, ModelClonerConstants::BELONGS_TO_MANY)) {
-                $this->duplicatePivotedRelation($relation, $relationName, $clone);
-            } else
+            if ($relation instanceof BelongsToMany) {
+                $this->clonePivotRelation($relation, $relationName, $clone);
+            } else {
                 $this->cloneDirectRelation($relation, $relationName, $clone);
+            }
         }
     }
 
-    protected function duplicatePivotedRelation(Relation $relation, string $relationName, Model $clone): void
+    private function clonePivotRelation(Relation $relation, string $relationName, Model $clone): void
     {
         $postIds = [];
 
         $relation->as('pivot')->get()->each(function ($foreign) use ($clone, $relationName, &$postIds) {
-            $pivotAttributes = Arr::except(
-                $foreign->pivot->getAttributes(), [
-                    $foreign->pivot->getRelatedKey(),
-                    $foreign->pivot->getForeignKey(),
-                    $foreign->pivot->getCreatedAtColumn(),
-                    $foreign->pivot->getUpdatedAtColumn()
-                ]);
+            $pivotAttributes = $this->getPivotAttributes($foreign);
 
-            // additional columns of the pivot table, if any
-            foreach (array_keys($pivotAttributes) as $attributeKey) {
-                $pivotAttributes[$attributeKey] = $foreign->pivot->getAttribute($attributeKey);
-            }
-
-            // Duplicate many-to-many relations and their own relations
             $foreignDuplicate = $this->duplicate($foreign);
             $clone->$relationName()->attach($foreignDuplicate, $pivotAttributes);
             $clone->save();
 
-            // posts are created after reviews, we need to update post_id in reviews
-            if (get_class($foreign) === ModelClonerConstants::POST_MODEL) {
+            // Special requirement (can be omitted) to update post_id in reviews table
+            if ($foreign instanceof Post) {
                 $postIds[$foreign->id] = $foreignDuplicate->id;
                 $this->updateReviews($postIds, $clone);
             }
         });
     }
 
-    protected function cloneDirectRelation(Relation $relation, string $relationName, Model $clone): void
+    private function cloneDirectRelation(Relation $relation, string $relationName, Model $clone): void
     {
         $relation->get()->each(function($relationObject) use ($clone, $relationName) {
+            $relationType = $clone->$relationName();
+            $clonedRelation = $this->duplicate($relationObject, $relationType);
 
-            $clonedRelation = $this->duplicate($relationObject, $clone->$relationName());
-
-            if (
-                is_a($clone->$relationName(), ModelClonerConstants::BELONGS_TO) ||
-                is_a($clone->$relationName(), ModelClonerConstants::MORPH_TO)
-            ) {
-                $clone->$relationName()->associate($clonedRelation);
+            if ($relationType instanceof BelongsToMany || $relationType instanceof MorphTo) {
+                $relationType->associate($clonedRelation);
                 $clone->save();
             }
         });
     }
 
-    private function updateReviews($postIds, $clone): void
+    private function getPivotAttributes(Model $foreign): array
+    {
+        // Retrieve all attributes from the pivot table; exclude keys you do not need
+        $pivotAttributes = Arr::except(
+            $foreign->pivot->getAttributes(), [
+                $foreign->pivot->getRelatedKey(),
+                $foreign->pivot->getForeignKey(),
+                $foreign->pivot->getCreatedAtColumn(),
+                $foreign->pivot->getUpdatedAtColumn()
+            ]);
+
+        // Replace the remaining attribute values with the values from the current instance
+        foreach (array_keys($pivotAttributes) as $attributeKey) {
+            $pivotAttributes[$attributeKey] = $foreign->pivot->getAttribute($attributeKey);
+        }
+
+        return $pivotAttributes;
+    }
+
+    private function updateReviews(array $postIds, Model $clone): void
     {
         foreach ($postIds as $originalForeignId => $duplicateForeignId) {
             Review::where([

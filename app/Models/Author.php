@@ -24,7 +24,8 @@ class Author extends Model
 
     public function posts(): BelongsToMany
     {
-        return $this->belongsToMany(Post::class);
+        return $this->belongsToMany(Post::class)
+            ->withTimestamps();
     }
 
     public function reviews(): HasMany
