@@ -148,11 +148,12 @@ Tag - TagType (many-to-one relation)
 Both Author and Post are related with the Review whose table has author_id and post_id columns. As according to my
 project requirements, the Post related to the author is cloned after the Review, the cloned Post IDs have to be updated
 in the Review table.
-This is done in `updateReviews` method. The cloned Post IDs are stored in the $clonedIds, that is, the $clonedIds
-property is an array of arrays, where the key is the original ID and the value is the cloned ID, see the method for more
-details. Bear in mind that, if the order of cloning requirements were different, the methods would have to be adjusted
-accordingly.
-In addition, if the cloned model is Author, the name should have the suffix ' (Cloned)'.
+This is done in `updateReviews` method via `onCloning` method. In general, `onCloning` method should be used for
+specific requirements that are supposed to be executed during cloning a model. 
+The cloned Post IDs are stored in the $clonedIds, that is, the $clonedIds property is an array of arrays, where the key
+is the original ID and the value is the cloned ID, see the method for more details. Bear in mind that, if the order of
+cloning requirements were different, the methods would have to be adjusted accordingly. In addition, if the cloned model
+is Author, the name should have the suffix ' (Cloned)'.
 
 
 ## Database seeding

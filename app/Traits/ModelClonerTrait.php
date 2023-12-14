@@ -50,20 +50,14 @@ trait ModelClonerTrait
 
     private function clonePivotRelation(Relation $relation, string $relationName, Model $clone): void
     {
-        $postIds = [];
-
-        $relation->as('pivot')->get()->each(function ($foreign) use ($clone, $relationName, &$postIds) {
+        $relation->as('pivot')->get()->each(function ($foreign) use ($clone, $relationName) {
             $pivotAttributes = $this->getPivotAttributes($foreign);
 
             $foreignDuplicate = $this->duplicate($foreign);
             $clone->$relationName()->attach($foreignDuplicate, $pivotAttributes);
             $clone->save();
 
-            // Special requirement (can be omitted) to update post_id in reviews table
-            if ($foreign instanceof Post) {
-                $postIds[$foreign->id] = $foreignDuplicate->id;
-                $this->updateReviews($postIds, $clone);
-            }
+            $this->onCloning($foreign, $foreignDuplicate, $clone);
         });
     }
 
@@ -97,6 +91,14 @@ trait ModelClonerTrait
         }
 
         return $pivotAttributes;
+    }
+
+    private function onCloning(Model $foreign, Model $foreignDuplicate, Model $clone): void
+    {
+        if ($foreign instanceof Post) {
+            $postIds[$foreign->id] = $foreignDuplicate->id;
+            $this->updateReviews($postIds, $clone);
+        }
     }
 
     private function updateReviews(array $postIds, Model $clone): void
